@@ -28,6 +28,8 @@ jobs:
         run: |
           pip install --upgrade pip setuptools wheel
           pip install buildozer==1.5.0 cython==0.29.36
+          pip install legacy-cgi
+          python -c "import cgi; print('cgi OK')"
 
       - name: Build APK
         run: |
