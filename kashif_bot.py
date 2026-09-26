@@ -4,6 +4,10 @@ import random
 import re
 import requests
 from fake_useragent import UserAgent
+try:
+    _UA = UserAgent(cache=True, use_cache_server=False, verify_ssl=False)
+except Exception:
+    _UA = UserAgent()
 
 try:
     from android.storage import app_storage_path
