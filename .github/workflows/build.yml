@@ -24,40 +24,31 @@ jobs:
             libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev \
             automake autopoint gettext
 
-      - name: Force install cgi module
+      - name: Patch 'cgi' module into every Python on the runner
         run: |
-          SITE=$(python -c "import site; print(site.getsitepackages()[0])")
-          echo "Python: $(python --version)"
-          echo "Site: $SITE"
-          cat > "$SITE/cgi.py" << 'CGIMOD'
-          import io, sys, os, tempfile, re
-          from email.parser import FeedParser
-
-          class MiniFieldStorage:
-              def __init__(self, name=None, value=None):
-                  self.name = name
-                  self.value = value
-
-          def parse(fp=None, environ=None, keep_blank_values=0, strict_parsing=0):
-              return {}
-
-          def escape(s, quote=None):
-              s = str(s)
-              s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-              if quote:
-                  s = s.replace('"', "&quot;")
-              return s
-
-          def valid_boundary(s):
-              if isinstance(s, bytes):
-                  s = s.decode('ascii')
-              return re.match(r"^[ -~]{0,200}[!-~]$", s) is not None
-
-          __all__ = ["MiniFieldStorage", "parse", "escape", "valid_boundary"]
-          CGIMOD
-          python -c "import cgi; print('CGI OK:', cgi.__file__)"
-          # Yeh bhi check karo ke buildozer ke environment mein hai
-          pip install legacy-cgi
+          # Root cause: pip's isolated build-env for Cython/Kivy turned out to
+          # use a SYSTEM python3 (3.14 on this runner image), not the 3.9 we
+          # set up above. Python 3.13+ removed the stdlib 'cgi' module, which
+          # old Cython (0.29.x) still imports internally -> ModuleNotFoundError.
+          # A single patch on one interpreter isn't enough since we can't
+          # control which python pip's isolated venv is spawned from. So:
+          # find every python3.x on the box and install a 'cgi' shim into each.
+          set +e
+          CANDIDATES=$(compgen -c python3 2>/dev/null | sort -u)
+          CANDIDATES="$CANDIDATES /usr/bin/python3* /usr/local/bin/python3* /opt/hostedtoolcache/Python/*/x64/bin/python3*"
+          for PYBIN in $CANDIDATES; do
+            PYPATH=$(command -v "$PYBIN" 2>/dev/null || echo "$PYBIN")
+            [ -x "$PYPATH" ] || continue
+            VER=$("$PYPATH" --version 2>&1)
+            echo "== $PYPATH ($VER) =="
+            "$PYPATH" -m ensurepip --default-pip >/dev/null 2>&1
+            "$PYPATH" -m pip install --quiet --disable-pip-version-check legacy-cgi 2>/dev/null \
+              || "$PYPATH" -m pip install --quiet --disable-pip-version-check --break-system-packages legacy-cgi 2>/dev/null \
+              || echo "   (skipped: could not pip install into this interpreter)"
+            "$PYPATH" -c "import cgi; print('   cgi OK ->', cgi.__file__)" 2>/dev/null \
+              || echo "   (cgi still missing here, continuing anyway)"
+          done
+          set -e
 
       - name: Install Buildozer
         run: |
@@ -65,18 +56,7 @@ jobs:
           pip install buildozer==1.5.0 cython==0.29.36
 
       - name: Build APK
-        env:
-          # Force pip to use prebuilt wheels instead of building Kivy/Cython
-          # from source. This avoids pip's isolated build-env (which uses its
-          # own fresh Python and does NOT see our patched cgi.py) from ever
-          # needing to import the removed 'cgi' module.
-          PIP_PREFER_BINARY: "1"
-          # Belt-and-suspenders: even if something still builds from source,
-          # constrain any pip install (including inside isolated build venvs)
-          # to a Cython version with the cgi import removed.
-          PIP_CONSTRAINT: "${{ github.workspace }}/constraints.txt"
         run: |
-          echo "cython==0.29.36" > "$PIP_CONSTRAINT"
           yes | buildozer -v android debug 2>&1 | tail -200
 
       - name: Upload APK
