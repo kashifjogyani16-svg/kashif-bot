@@ -7,14 +7,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      - name: Check Python version and cgi
+        run: |
+          python3 --version
+          python3 -c "import cgi; print('cgi OK:', cgi.__file__)"
 
       - name: Install system dependencies
         run: |
@@ -22,55 +22,12 @@ jobs:
           sudo apt install -y git zip unzip openjdk-17-jdk \
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
             libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev \
-            automake autopoint gettext
+            automake autopoint gettext python3-pip python3-setuptools
 
       - name: Install Buildozer and tools
         run: |
-          pip install --upgrade pip setuptools wheel
-          pip install buildozer==1.5.0 cython==0.29.36
-          pip install legacy-cgi
-
-      - name: Force cgi module into Python path
-        run: |
-          SITE=$(python -c "import site; print(site.getsitepackages()[0])")
-          echo "Site packages: $SITE"
-          # legacy-cgi se cgi module copy karein
-          pip download legacy-cgi -d /tmp/cgi_pkg --no-deps
-          cd /tmp/cgi_pkg
-          ls -la
-          # Simple cgi module banayein
-          cat > $SITE/cgi.py << 'CGIMOD'
-          """Minimal cgi module for buildozer/p4a compatibility"""
-          import io
-          import sys
-          import os
-          import tempfile
-          from email.parser import FeedParser
-
-          class MiniFieldStorage:
-              def __init__(self, name=None, value=None):
-                  self.name = name
-                  self.value = value
-
-          def parse(fp=None, environ=None, keep_blank_values=0, strict_parsing=0):
-              return {}
-
-          def escape(s, quote=None):
-              s = str(s)
-              s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-              if quote:
-                  s = s.replace('"', "&quot;")
-              return s
-
-          def valid_boundary(s):
-              import re
-              if isinstance(s, bytes):
-                  s = s.decode('ascii')
-              return re.match(r"^[ -~]{0,200}[!-~]$", s) is not None
-
-          __all__ = ["MiniFieldStorage", "parse", "escape", "valid_boundary"]
-          CGIMOD
-          python -c "import cgi; print('cgi OK:', cgi.__file__)"
+          pip3 install --upgrade pip setuptools wheel
+          pip3 install buildozer==1.5.0 cython==0.29.36
 
       - name: Build APK
         run: |
