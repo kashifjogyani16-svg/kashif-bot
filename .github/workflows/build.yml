@@ -10,23 +10,65 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-      - name: Install deps
+          python-version: '3.9'
+
+      - name: Install system dependencies
         run: |
           sudo apt update
           sudo apt install -y git zip unzip openjdk-17-jdk \
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
             libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev \
             automake autopoint gettext
-      - name: Install buildozer
+
+      - name: Force install cgi module
+        run: |
+          SITE=$(python -c "import site; print(site.getsitepackages()[0])")
+          echo "Python: $(python --version)"
+          echo "Site: $SITE"
+          cat > "$SITE/cgi.py" << 'CGIMOD'
+import io, sys, os, tempfile, re
+from email.parser import FeedParser
+
+class MiniFieldStorage:
+    def __init__(self, name=None, value=None):
+        self.name = name
+        self.value = value
+
+def parse(fp=None, environ=None, keep_blank_values=0, strict_parsing=0):
+    return {}
+
+def escape(s, quote=None):
+    s = str(s)
+    s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    if quote:
+        s = s.replace('"', "&quot;")
+    return s
+
+def valid_boundary(s):
+    if isinstance(s, bytes):
+        s = s.decode('ascii')
+    return re.match(r"^[ -~]{0,200}[!-~]$", s) is not None
+
+__all__ = ["MiniFieldStorage", "parse", "escape", "valid_boundary"]
+CGIMOD
+          python -c "import cgi; print('CGI OK:', cgi.__file__)"
+          # Yeh bhi check karo ke buildozer ke environment mein hai
+          pip install legacy-cgi
+
+      - name: Install Buildozer
         run: |
           pip install --upgrade pip setuptools wheel
-          pip install buildozer==1.5.0 cython==0.29.36 legacy-cgi
-      - name: Build
-        run: yes | buildozer -v android debug 2>&1 | tail -200
-      - name: Upload
+          pip install buildozer==1.5.0 cython==0.29.36
+
+      - name: Build APK
+        run: |
+          yes | buildozer -v android debug 2>&1 | tail -200
+
+      - name: Upload APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
