@@ -30,31 +30,31 @@ jobs:
           echo "Python: $(python --version)"
           echo "Site: $SITE"
           cat > "$SITE/cgi.py" << 'CGIMOD'
-import io, sys, os, tempfile, re
-from email.parser import FeedParser
+          import io, sys, os, tempfile, re
+          from email.parser import FeedParser
 
-class MiniFieldStorage:
-    def __init__(self, name=None, value=None):
-        self.name = name
-        self.value = value
+          class MiniFieldStorage:
+              def __init__(self, name=None, value=None):
+                  self.name = name
+                  self.value = value
 
-def parse(fp=None, environ=None, keep_blank_values=0, strict_parsing=0):
-    return {}
+          def parse(fp=None, environ=None, keep_blank_values=0, strict_parsing=0):
+              return {}
 
-def escape(s, quote=None):
-    s = str(s)
-    s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    if quote:
-        s = s.replace('"', "&quot;")
-    return s
+          def escape(s, quote=None):
+              s = str(s)
+              s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+              if quote:
+                  s = s.replace('"', "&quot;")
+              return s
 
-def valid_boundary(s):
-    if isinstance(s, bytes):
-        s = s.decode('ascii')
-    return re.match(r"^[ -~]{0,200}[!-~]$", s) is not None
+          def valid_boundary(s):
+              if isinstance(s, bytes):
+                  s = s.decode('ascii')
+              return re.match(r"^[ -~]{0,200}[!-~]$", s) is not None
 
-__all__ = ["MiniFieldStorage", "parse", "escape", "valid_boundary"]
-CGIMOD
+          __all__ = ["MiniFieldStorage", "parse", "escape", "valid_boundary"]
+          CGIMOD
           python -c "import cgi; print('CGI OK:', cgi.__file__)"
           # Yeh bhi check karo ke buildozer ke environment mein hai
           pip install legacy-cgi
