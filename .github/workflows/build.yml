@@ -29,7 +29,48 @@ jobs:
           pip install --upgrade pip setuptools wheel
           pip install buildozer==1.5.0 cython==0.29.36
           pip install legacy-cgi
-          python -c "import cgi; print('cgi OK')"
+
+      - name: Force cgi module into Python path
+        run: |
+          SITE=$(python -c "import site; print(site.getsitepackages()[0])")
+          echo "Site packages: $SITE"
+          # legacy-cgi se cgi module copy karein
+          pip download legacy-cgi -d /tmp/cgi_pkg --no-deps
+          cd /tmp/cgi_pkg
+          ls -la
+          # Simple cgi module banayein
+          cat > $SITE/cgi.py << 'CGIMOD'
+          """Minimal cgi module for buildozer/p4a compatibility"""
+          import io
+          import sys
+          import os
+          import tempfile
+          from email.parser import FeedParser
+
+          class MiniFieldStorage:
+              def __init__(self, name=None, value=None):
+                  self.name = name
+                  self.value = value
+
+          def parse(fp=None, environ=None, keep_blank_values=0, strict_parsing=0):
+              return {}
+
+          def escape(s, quote=None):
+              s = str(s)
+              s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+              if quote:
+                  s = s.replace('"', "&quot;")
+              return s
+
+          def valid_boundary(s):
+              import re
+              if isinstance(s, bytes):
+                  s = s.decode('ascii')
+              return re.match(r"^[ -~]{0,200}[!-~]$", s) is not None
+
+          __all__ = ["MiniFieldStorage", "parse", "escape", "valid_boundary"]
+          CGIMOD
+          python -c "import cgi; print('cgi OK:', cgi.__file__)"
 
       - name: Build APK
         run: |
