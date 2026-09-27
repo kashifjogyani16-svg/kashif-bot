@@ -1,12 +1,12 @@
 [app]
-title = Kashif Master Bot
+title = Kashif Bot
 package.name = kashifbot
 package.domain = org.kashif
 source.dir = .
 source.include_exts = py,txt,png,jpg,kv,atlas,json
 version = 1.0
 
-requirements = python3,kivy==2.2.1,requests,urllib3,certifi,chardet,idna,fake-useragent==1.4.0,plyer,android
+requirements = python3,kivy==2.2.1,requests,urllib3,certifi,chardet,idna,plyer,android
 
 orientation = portrait
 fullscreen = 0
