@@ -7,14 +7,15 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      - name: Confirm system Python has cgi
+        run: |
+          which python3
+          python3 --version
+          python3 -c "import cgi; print('CGI OK ->', cgi.__file__)"
 
       - name: Install system dependencies
         run: |
@@ -22,42 +23,16 @@ jobs:
           sudo apt install -y git zip unzip openjdk-17-jdk \
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
             libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev \
-            automake autopoint gettext
+            automake autopoint gettext python3-pip python3-setuptools python3-dev
 
-      - name: Patch 'cgi' module into every Python on the runner
+      - name: Install Buildozer with system python3
         run: |
-          # Root cause: pip's isolated build-env for Cython/Kivy turned out to
-          # use a SYSTEM python3 (3.14 on this runner image), not the 3.9 we
-          # set up above. Python 3.13+ removed the stdlib 'cgi' module, which
-          # old Cython (0.29.x) still imports internally -> ModuleNotFoundError.
-          # A single patch on one interpreter isn't enough since we can't
-          # control which python pip's isolated venv is spawned from. So:
-          # find every python3.x on the box and install a 'cgi' shim into each.
-          set +e
-          CANDIDATES=$(compgen -c python3 2>/dev/null | sort -u)
-          CANDIDATES="$CANDIDATES /usr/bin/python3* /usr/local/bin/python3* /opt/hostedtoolcache/Python/*/x64/bin/python3*"
-          for PYBIN in $CANDIDATES; do
-            PYPATH=$(command -v "$PYBIN" 2>/dev/null || echo "$PYBIN")
-            [ -x "$PYPATH" ] || continue
-            VER=$("$PYPATH" --version 2>&1)
-            echo "== $PYPATH ($VER) =="
-            "$PYPATH" -m ensurepip --default-pip >/dev/null 2>&1
-            "$PYPATH" -m pip install --quiet --disable-pip-version-check legacy-cgi 2>/dev/null \
-              || "$PYPATH" -m pip install --quiet --disable-pip-version-check --break-system-packages legacy-cgi 2>/dev/null \
-              || echo "   (skipped: could not pip install into this interpreter)"
-            "$PYPATH" -c "import cgi; print('   cgi OK ->', cgi.__file__)" 2>/dev/null \
-              || echo "   (cgi still missing here, continuing anyway)"
-          done
-          set -e
-
-      - name: Install Buildozer
-        run: |
-          pip install --upgrade pip setuptools wheel
-          pip install buildozer==1.5.0 cython==0.29.36
+          python3 -m pip install --upgrade pip setuptools wheel
+          python3 -m pip install buildozer==1.5.0 cython==0.29.36
 
       - name: Build APK
         run: |
-          yes | buildozer -v android debug 2>&1 | tail -200
+          yes | python3 -m buildozer -v android debug 2>&1 | tail -200
 
       - name: Upload APK
         if: always()
