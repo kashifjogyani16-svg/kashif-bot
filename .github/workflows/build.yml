@@ -65,7 +65,18 @@ jobs:
           pip install buildozer==1.5.0 cython==0.29.36
 
       - name: Build APK
+        env:
+          # Force pip to use prebuilt wheels instead of building Kivy/Cython
+          # from source. This avoids pip's isolated build-env (which uses its
+          # own fresh Python and does NOT see our patched cgi.py) from ever
+          # needing to import the removed 'cgi' module.
+          PIP_PREFER_BINARY: "1"
+          # Belt-and-suspenders: even if something still builds from source,
+          # constrain any pip install (including inside isolated build venvs)
+          # to a Cython version with the cgi import removed.
+          PIP_CONSTRAINT: "${{ github.workspace }}/constraints.txt"
         run: |
+          echo "cython==0.29.36" > "$PIP_CONSTRAINT"
           yes | buildozer -v android debug 2>&1 | tail -200
 
       - name: Upload APK
